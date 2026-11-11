@@ -1,0 +1,53 @@
+name: quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: merchantflow
+          POSTGRES_PASSWORD: merchantflow
+          POSTGRES_DB: merchantflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U merchantflow -d merchantflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://merchantflow:merchantflow@localhost:5432/merchantflow
+      RUN_INTEGRATION_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Initialize schema
+        run: PGPASSWORD=merchantflow psql -h localhost -U merchantflow -d merchantflow -f server/db/schema.sql
+      - name: Install API dependencies
+        working-directory: server
+        run: npm install
+      - name: Run API and domain tests
+        working-directory: server
+        run: npm test
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        working-directory: client
+        run: npm install
+      - name: Build dashboard
+        working-directory: client
+        run: npm run build
