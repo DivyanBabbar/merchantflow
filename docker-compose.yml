@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: merchantflow
+      POSTGRES_PASSWORD: merchantflow
+      POSTGRES_DB: merchantflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - merchantflow-data:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U merchantflow -d merchantflow"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./server
+    environment:
+      DATABASE_URL: postgres://merchantflow:merchantflow@db:5432/merchantflow
+      PORT: 3000
+      CLIENT_ORIGIN: http://localhost:5173
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build:
+      context: ./client
+      args:
+        VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+volumes:
+  merchantflow-data:
