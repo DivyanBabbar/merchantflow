@@ -21,6 +21,7 @@ services:
       DATABASE_URL: postgres://merchantflow:merchantflow@db:5432/merchantflow
       PORT: 3000
       CLIENT_ORIGIN: http://localhost:5173
+      SIMULATOR_ENABLED: "true"
     ports:
       - "3000:3000"
     depends_on:

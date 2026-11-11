@@ -9,6 +9,9 @@ app.use(express.json({ limit: '32kb' }));
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 const requestHash = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const simulatorOnly = (_req, res, next) => process.env.SIMULATOR_ENABLED === 'true'
+  ? next()
+  : res.status(403).json({ error: 'The local payment simulator is disabled.' });
 const asOrder = (row) => ({
   id: row.id,
   productId: Number(row.product_id),
@@ -130,14 +133,14 @@ async function applyPaymentEvent(event) {
   });
 }
 
-app.post('/api/v1/orders/:id/capture', async (req, res, next) => {
+app.post('/api/v1/orders/:id/capture', simulatorOnly, async (req, res, next) => {
   try {
     const result = await applyPaymentEvent({ eventId: `capture-${crypto.randomUUID()}`, orderId: req.params.id, type: 'PAYMENT_CAPTURED' });
     res.json(result);
   } catch (error) { next(error); }
 });
 
-app.post('/api/v1/orders/:id/refund', async (req, res, next) => {
+app.post('/api/v1/orders/:id/refund', simulatorOnly, async (req, res, next) => {
   try {
     const result = await applyPaymentEvent({ eventId: `refund-${crypto.randomUUID()}`, orderId: req.params.id, type: 'PAYMENT_REFUNDED' });
     res.json(result);
@@ -158,7 +161,7 @@ app.post('/api/v1/orders/:id/cancel', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-app.post('/api/v1/simulator/webhooks', async (req, res, next) => {
+app.post('/api/v1/simulator/webhooks', simulatorOnly, async (req, res, next) => {
   try {
     const result = await applyPaymentEvent(req.body ?? {});
     res.json(result);

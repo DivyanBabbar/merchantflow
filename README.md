@@ -39,7 +39,7 @@ To stop the services, run `docker compose down`. Add `-v` only if you also want 
 | `POST` | `/api/v1/orders/:id/capture` | Simulate a payment capture |
 | `POST` | `/api/v1/orders/:id/refund` | Simulate a refund |
 | `POST` | `/api/v1/orders/:id/cancel` | Cancel a pending order and release reserved stock |
-| `POST` | `/api/v1/simulator/webhooks` | Replay a signed-off local event by ID for failure experiments |
+| `POST` | `/api/v1/simulator/webhooks` | Replay a local payment event by ID for failure experiments |
 
 Amounts are integer cents. The fake gateway is local-only and intentionally does not model card processing, settlement, or a real provider's signature scheme.
 
@@ -50,6 +50,7 @@ Amounts are integer cents. The fake gateway is local-only and intentionally does
 - Captures and refunds update payment state, order state, and balanced ledger rows atomically.
 - Event processing is idempotent by event ID. The simulator lets you submit the same event more than once to observe the duplicate path.
 - The MVP is a modular monolith. Add a background worker or a queue only after a measured need.
+- The API has no authentication and is for a local portfolio demo. Do not expose it to the public internet.
 
 ## Development
 
