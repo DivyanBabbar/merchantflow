@@ -49,6 +49,10 @@ jobs:
       - name: Install web dependencies
         working-directory: client
         run: npm install
+      - name: Run web unit tests
+        working-directory: client
+        run: npm test
       - name: Build dashboard
         working-directory: client
         run: npm run build
+

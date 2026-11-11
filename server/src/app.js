@@ -2,13 +2,13 @@ import crypto from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import { pool, inTransaction } from './db.js';
+import { hashOrderRequest, paymentLedgerPair } from './domain.js';
 
 export const app = express();
 app.use(cors({ origin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173' }));
 app.use(express.json({ limit: '32kb' }));
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
-const requestHash = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const simulatorOnly = (_req, res, next) => process.env.SIMULATOR_ENABLED === 'true'
   ? next()
   : res.status(403).json({ error: 'The local payment simulator is disabled.' });
@@ -73,7 +73,7 @@ app.post('/api/v1/orders', async (req, res, next) => {
   if (!Number.isSafeInteger(productId) || productId < 1 || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 100) {
     return next(httpError(400, 'productId and quantity must be positive integers; quantity cannot exceed 100.'));
   }
-  const hash = requestHash({ productId, quantity });
+  const hash = hashOrderRequest(productId, quantity);
   try {
     const result = await inTransaction(async client => {
       const reserved = await client.query(
@@ -120,17 +120,23 @@ async function applyPaymentEvent(event) {
       if (order.status !== 'PENDING') throw httpError(409, `Cannot capture an order in ${order.status} state.`);
       await client.query('INSERT INTO payments (id, order_id, amount_cents, status) VALUES ($1, $2, $3, $4)', [crypto.randomUUID(), orderId, order.amount_cents, 'CAPTURED']);
       await client.query('UPDATE orders SET status = $2, updated_at = now() WHERE id = $1', [orderId, 'PAID']);
-      await client.query(`INSERT INTO ledger_entries (order_id, event_id, account, direction, amount_cents)
-        VALUES ($1, $2, 'CUSTOMER_FUNDS', 'DEBIT', $3), ($1, $2, 'SELLER_CLEARING', 'CREDIT', $3)`, [orderId, eventId, order.amount_cents]);
+      await insertLedgerPair(client, orderId, eventId, type, order.amount_cents);
       return { duplicate: false, status: 'PAID' };
     }
     if (order.status !== 'PAID') throw httpError(409, `Cannot refund an order in ${order.status} state.`);
     await client.query('UPDATE payments SET status = $2, updated_at = now() WHERE order_id = $1', [orderId, 'REFUNDED']);
     await client.query('UPDATE orders SET status = $2, updated_at = now() WHERE id = $1', [orderId, 'REFUNDED']);
-    await client.query(`INSERT INTO ledger_entries (order_id, event_id, account, direction, amount_cents)
-      VALUES ($1, $2, 'SELLER_CLEARING', 'DEBIT', $3), ($1, $2, 'CUSTOMER_FUNDS', 'CREDIT', $3)`, [orderId, eventId, order.amount_cents]);
+    await insertLedgerPair(client, orderId, eventId, type, order.amount_cents);
     return { duplicate: false, status: 'REFUNDED' };
   });
+}
+
+async function insertLedgerPair(client, orderId, eventId, type, amountCents) {
+  const [first, second] = paymentLedgerPair(type, amountCents);
+  await client.query(`INSERT INTO ledger_entries (order_id, event_id, account, direction, amount_cents)
+    VALUES ($1, $2, $3, $4, $5), ($1, $2, $6, $7, $5)`, [
+    orderId, eventId, first.account, first.direction, amountCents, second.account, second.direction
+  ]);
 }
 
 app.post('/api/v1/orders/:id/capture', simulatorOnly, async (req, res, next) => {
@@ -173,3 +179,4 @@ app.use((error, _req, res, _next) => {
   if (status >= 500) console.error(error);
   res.status(status).json({ error: status >= 500 ? 'Internal server error.' : error.message });
 });
+
