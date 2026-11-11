@@ -10,7 +10,8 @@ let server;
 let baseUrl;
 let productId;
 
-before({ skip: !enabled }, async () => {
+before(async () => {
+  if (!enabled) return;
   const result = await pool.query('INSERT INTO products (name, price_cents, stock) VALUES ($1, 2500, 20) RETURNING id', [`test-${runId}`]);
   productId = Number(result.rows[0].id);
   server = app.listen(0);
@@ -18,7 +19,8 @@ before({ skip: !enabled }, async () => {
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
 
-after({ skip: !enabled }, async () => {
+after(async () => {
+  if (!enabled) return;
   if (productId) {
     await pool.query(`DELETE FROM ledger_entries WHERE order_id IN (SELECT id FROM orders WHERE product_id = $1)`, [productId]);
     await pool.query(`DELETE FROM webhook_events WHERE order_id IN (SELECT id FROM orders WHERE product_id = $1)`, [productId]);
