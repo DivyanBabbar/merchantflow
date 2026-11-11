@@ -63,7 +63,7 @@ The domain tests use Node's built-in test runner. The API integration tests use 
 
 ## Portfolio path
 
-Start with the smaller exercises in [`docs/PROJECT_JOURNEY.md`](docs/PROJECT_JOURNEY.md). Build this MVP only after the basics feel familiar, then document each failure you reproduce and each fix you verify. A project is interview-ready when you can run it from a clean checkout, demo its failure cases, and explain the design without relying on the README.
+Start with the smaller exercises in [`docs/PROJECT_JOURNEY.md`](docs/PROJECT_JOURNEY.md): [Pocket Ledger](https://github.com/DivyanBabbar/pocket-ledger) and [Study Queue](https://github.com/DivyanBabbar/study-queue). Build this MVP only after the basics feel familiar, then document each failure you reproduce and each fix you verify. A project is interview-ready when you can run it from a clean checkout, demo its failure cases, and explain the design without relying on the README.
 
 ## License
 
