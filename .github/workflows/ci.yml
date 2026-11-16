@@ -3,6 +3,7 @@ name: quality
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   api:
@@ -56,3 +57,72 @@ jobs:
         working-directory: client
         run: npm run build
 
+  browser-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: merchantflow
+          POSTGRES_PASSWORD: merchantflow
+          POSTGRES_DB: merchantflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U merchantflow -d merchantflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://merchantflow:merchantflow@localhost:5432/merchantflow
+      SIMULATOR_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Initialize schema
+        run: PGPASSWORD=merchantflow psql -h localhost -U merchantflow -d merchantflow -f server/db/schema.sql
+      - name: Install API and browser dependencies
+        run: |
+          npm --prefix server install
+          npm --prefix client install
+      - name: Install Chromium
+        working-directory: client
+        run: npx playwright install --with-deps chromium
+      - name: Start API
+        run: node server/src/index.js > /tmp/merchantflow-api.log 2>&1 &
+      - name: Start dashboard
+        working-directory: client
+        run: npm run dev -- --host 0.0.0.0 > /tmp/merchantflow-web.log 2>&1 &
+      - name: Wait for services
+        run: |
+          for i in $(seq 1 40); do
+            if curl -fsS http://localhost:3000/health >/dev/null && curl -fsS http://localhost:5173 >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/merchantflow-api.log
+          cat /tmp/merchantflow-web.log
+          exit 1
+      - name: Run browser flow
+        working-directory: client
+        run: npm run test:e2e
+
+  windows-clean-clone:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install and test API package
+        working-directory: server
+        run: |
+          npm install
+          npm test
+      - name: Install, test, and build dashboard
+        working-directory: client
+        run: |
+          npm install
+          npm test
+          npm run build

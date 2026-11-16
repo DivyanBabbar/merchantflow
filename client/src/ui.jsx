@@ -42,11 +42,11 @@ export default function App() {
 
   async function createProduct(event) {
     event.preventDefault();
-    const priceCents = parseRupees(productPrice);
+    const pricePaise = parseRupees(productPrice);
     const stock = Number(productStock);
-    if (priceCents === null) { setError('Enter a price in rupees with up to two decimal places.'); return; }
+    if (pricePaise === null) { setError('Enter a price in rupees with up to two decimal places.'); return; }
     if (!Number.isSafeInteger(stock) || stock < 0) { setError('Stock must be a whole number of zero or more.'); return; }
-    const product = await act('/api/v1/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: productName, priceCents, stock }) });
+    const product = await act('/api/v1/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: productName, pricePaise, stock }) });
     if (product) { setProductName(''); setProductPrice(''); setProductStock('10'); setSelectedProductId(String(product.id)); }
   }
 
@@ -68,7 +68,7 @@ export default function App() {
   }
 
   const paid = orders.filter(o => o.status === 'PAID').length;
-  const total = orders.reduce((sum, o) => sum + (o.status === 'PAID' ? o.amountCents : 0), 0);
+  const total = orders.reduce((sum, o) => sum + (o.status === 'PAID' ? o.amountPaise : 0), 0);
 
   return <main className="shell">
     <header className="topbar"><a className="brand" href="#top"><span className="brand-mark">M</span> merchantflow</a><span className="env"><i /> Local simulation</span></header>
@@ -84,7 +84,7 @@ export default function App() {
         <p className="hint">Prices are converted to integer paise before they reach the API.</p>
       </form>
       <form className="panel order-panel" onSubmit={createOrder}><div className="panel-head"><div><p className="eyebrow">CHECKOUT SIMULATOR</p><h2>Create an order</h2></div><span className="step">02</span></div>
-        {products.length ? <><label className="stack-field">Product<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>{products.map(product => <option key={product.id} value={product.id}>{product.name} · {formatRupees(product.priceCents)} · {product.stock} available</option>)}</select></label>
+        {products.length ? <><label className="stack-field">Product<select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)}>{products.map(product => <option key={product.id} value={product.id}>{product.name} · {formatRupees(product.pricePaise)} · {product.stock} available</option>)}</select></label>
           <label className="stack-field quantity-field">Quantity<input type="number" min="1" max="100" value={quantity} onChange={e => setQuantity(e.target.value)} /></label>
           <button className="primary" disabled={busy || Number(quantity) < 1 || Number(quantity) > 100}>{busy ? 'Working…' : 'Create pending order'} <span>→</span></button></> : <div className="empty compact"><strong>{loading ? 'Loading catalog…' : 'Add a product to begin'}</strong><span>New products appear here automatically.</span></div>}
         <p className="hint">If a request times out, retrying the same order reuses its idempotency key.</p>
@@ -92,7 +92,7 @@ export default function App() {
       <div className="panel flow-panel"><div className="panel-head"><div><p className="eyebrow">HOW IT WORKS</p><h2>One flow, three records</h2></div><span className="step">03</span></div><div className="flow"><div className="flow-item"><b className="flow-dot violet">1</b><div><strong>Order</strong><span>Inventory is reserved in a database transaction.</span></div></div><div className="flow-line" /><div className="flow-item"><b className="flow-dot blue">2</b><div><strong>Payment event</strong><span>The local gateway simulator captures or refunds.</span></div></div><div className="flow-line" /><div className="flow-item"><b className="flow-dot green">3</b><div><strong>Ledger</strong><span>Balanced entries record the movement.</span></div></div></div></div>
     </section>
     <section className="panel table-panel"><div className="panel-head table-title"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Orders</h2></div><button type="button" className="refresh" onClick={() => refresh().catch(e => setError(e.message))}>Refresh ↻</button></div>
-      {orders.length === 0 ? <div className="empty"><div className="empty-icon">⌁</div><strong>{loading ? 'Loading orders…' : 'No orders yet'}</strong><span>Create a pending order to start the demo.</span></div> : <div className="table-wrap"><table><thead><tr><th>ORDER</th><th>ITEM</th><th>AMOUNT</th><th>STATUS</th><th>LEDGER</th><th>ACTION</th></tr></thead><tbody>{orders.map(order => <tr key={order.id}><td><code>{order.id.slice(0, 8)}</code></td><td>{order.productName} × {order.quantity}</td><td>{formatRupees(order.amountCents)}</td><td><span className={`badge ${order.status.toLowerCase()}`}>{order.status}</span></td><td>{order.ledgerEntries === 0 ? '—' : order.ledgerBalanced ? 'Balanced' : 'Check'}</td><td>{order.status === 'PENDING' ? <><button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/capture`, { method: 'POST' })}>Simulate capture</button> <button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/cancel`, { method: 'POST' })}>Cancel</button></> : order.status === 'PAID' ? <button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/refund`, { method: 'POST' })}>Simulate refund</button> : <span className="muted">Complete</span>}</td></tr>)}</tbody></table></div>}
+      {orders.length === 0 ? <div className="empty"><div className="empty-icon">⌁</div><strong>{loading ? 'Loading orders…' : 'No orders yet'}</strong><span>Create a pending order to start the demo.</span></div> : <div className="table-wrap"><table><thead><tr><th>ORDER</th><th>ITEM</th><th>AMOUNT</th><th>STATUS</th><th>LEDGER</th><th>ACTION</th></tr></thead><tbody>{orders.map(order => <tr key={order.id}><td><code>{order.id.slice(0, 8)}</code></td><td>{order.productName} × {order.quantity}</td><td>{formatRupees(order.amountPaise)}</td><td><span className={`badge ${order.status.toLowerCase()}`}>{order.status}</span></td><td>{order.ledgerEntries === 0 ? '—' : order.ledgerBalanced ? 'Balanced' : 'Check'}</td><td>{order.status === 'PENDING' ? <><button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/capture`, { method: 'POST' })}>Simulate capture</button> <button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/cancel`, { method: 'POST' })}>Cancel</button></> : order.status === 'PAID' ? <button type="button" className="action" disabled={busy} onClick={() => act(`/api/v1/orders/${order.id}/refund`, { method: 'POST' })}>Simulate refund</button> : <span className="muted">Complete</span>}</td></tr>)}</tbody></table></div>}
     </section>
     <footer><span>MerchantFlow · learning project</span><span>Local simulator · no real money</span></footer>
   </main>;

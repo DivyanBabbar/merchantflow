@@ -19,8 +19,8 @@ test('capture and refund use opposite balanced ledger directions', () => {
 });
 
 test('ledger pair rejects invalid amounts and event types', () => {
-  assert.throws(() => paymentLedgerPair('PAYMENT_CAPTURED', 0), /amountCents/);
-  assert.throws(() => paymentLedgerPair('PAYMENT_CAPTURED', 2_147_483_648), /amountCents/);
+  assert.throws(() => paymentLedgerPair('PAYMENT_CAPTURED', 0), /amountPaise/);
+  assert.throws(() => paymentLedgerPair('PAYMENT_CAPTURED', 2_147_483_648), /amountPaise/);
   assert.throws(() => paymentLedgerPair('PAYMENT_FAILED', 100), /Unsupported/);
 });
 

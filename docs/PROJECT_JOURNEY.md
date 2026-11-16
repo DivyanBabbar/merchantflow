@@ -1,6 +1,6 @@
 # From small tools to MerchantFlow
 
-I built Pocket Ledger and Study Queue before starting MerchantFlow. They are finished projects, not exercises waiting to be done. Each gave me a chance to work through a different set of problems, and MerchantFlow brings those lessons into a system with a database, an API, and payment-like events.
+Pocket Ledger, Study Queue, and MerchantFlow form a learning progression across data handling, browser state, APIs, and database transactions. Pocket Ledger and Study Queue are completed projects; this progression describes the skills I connect across them, not the chronological order in which the repositories were started.
 
 This page is the public record of that progression: what each project does, what I took from it, and what I am working to understand in MerchantFlow. I want the code, tests, and documented limitations to speak for themselves; I do not want to claim reliability without showing how it is checked.
 

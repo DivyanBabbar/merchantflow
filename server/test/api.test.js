@@ -13,7 +13,7 @@ const productIds = [];
 
 before(async () => {
   if (!enabled) return;
-  const result = await pool.query('INSERT INTO products (name, price_cents, stock) VALUES ($1, 2500, 20) RETURNING id', [`test-${runId}`]);
+  const result = await pool.query('INSERT INTO products (name, price_paise, stock) VALUES ($1, 2500, 20) RETURNING id', [`test-${runId}`]);
   productId = Number(result.rows[0].id);
   productIds.push(productId);
   server = app.listen(0);
@@ -36,7 +36,7 @@ after(async () => {
 });
 
 async function createProduct(name, stock) {
-  const result = await pool.query('INSERT INTO products (name, price_cents, stock) VALUES ($1, 2500, $2) RETURNING id', [name, stock]);
+  const result = await pool.query('INSERT INTO products (name, price_paise, stock) VALUES ($1, 2500, $2) RETURNING id', [name, stock]);
   const id = Number(result.rows[0].id);
   productIds.push(id);
   return id;
@@ -53,17 +53,17 @@ async function createOrder(key, targetProductId = productId, quantity = 2) {
 test('catalog and order endpoints reject invalid input before persistence', { skip: !enabled }, async () => {
   const productResponse = await fetch(`${baseUrl}/api/v1/products`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: `test-${runId}-api-product`, priceCents: 49900, stock: 3 })
+    body: JSON.stringify({ name: `test-${runId}-api-product`, pricePaise: 49900, stock: 3 })
   });
   assert.equal(productResponse.status, 201);
   const product = await productResponse.json();
-  assert.equal(product.priceCents, 49900);
+  assert.equal(product.pricePaise, 49900);
   assert.equal(product.stock, 3);
   productIds.push(product.id);
 
   const invalidProduct = await fetch(`${baseUrl}/api/v1/products`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: ' ', priceCents: 0, stock: -1 })
+    body: JSON.stringify({ name: ' ', pricePaise: 0, stock: -1 })
   });
   assert.equal(invalidProduct.status, 400);
 

@@ -4,9 +4,9 @@ export function hashOrderRequest(productId, quantity) {
   return crypto.createHash('sha256').update(JSON.stringify({ productId, quantity })).digest('hex');
 }
 
-export function paymentLedgerPair(type, amountCents) {
-  if (!Number.isSafeInteger(amountCents) || amountCents < 1 || amountCents > 2_147_483_647) {
-    throw new TypeError('amountCents must be a positive PostgreSQL integer.');
+export function paymentLedgerPair(type, amountPaise) {
+  if (!Number.isSafeInteger(amountPaise) || amountPaise < 1 || amountPaise > 2_147_483_647) {
+    throw new TypeError('amountPaise must be a positive PostgreSQL integer.');
   }
   if (type === 'PAYMENT_CAPTURED') {
     return [

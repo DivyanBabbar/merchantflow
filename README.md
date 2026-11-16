@@ -2,7 +2,7 @@
 
 I built MerchantFlow to explore the parts of a small commerce system that are easy to overlook in a happy-path demo: retries, inventory consistency, payment state, and keeping a ledger balanced. It is a local portfolio project built with React, Node.js, and PostgreSQL. Its payment gateway is simulated; no real payments are processed.
 
-MerchantFlow follows two completed projects of mine: [Pocket Ledger](https://github.com/DivyanBabbar/pocket-ledger), a C++ command-line finance tracker, and [Study Queue](https://github.com/DivyanBabbar/study-queue), a browser-based task app. I describe that progression and the problems I worked through in [the project journey](docs/PROJECT_JOURNEY.md).
+Pocket Ledger and Study Queue are separate completed projects that gave me practice with data validation, persistence, and browser state. They are part of my learning progression; this description does not claim they were started before MerchantFlow. See [the project journey](docs/PROJECT_JOURNEY.md).
 
 ## Run locally
 
@@ -14,9 +14,24 @@ docker compose up --build
 
 Open the dashboard at <http://localhost:5173> and the API at <http://localhost:3000>. The API health endpoint is <http://localhost:3000/health>.
 
+For an existing local Docker volume created with the legacy column names, apply the safe rename migration before restarting the API. The migration preserves the integer values (the existing client has stored paise despite the old names). Back up first and follow [the upgrade steps below](#upgrading-an-existing-local-database).
+
 The first boot creates a demo product. Use the dashboard to create an order and choose **Simulate capture**. The order list refreshes with its payment status and ledger total.
 
-To stop the services, run `docker compose down`. Add `-v` only if you also want to delete the local PostgreSQL data volume.
+To stop the services, run `docker compose down`. Avoid `-v` if you want to preserve the local PostgreSQL data volume.
+
+## Upgrading an existing local database
+
+The schema change renames legacy `*_cents` columns to `*_paise` without changing stored integer values. Back up local data first. For an existing Docker Compose volume, stop the API, start PostgreSQL, apply the migration once, then rebuild:
+
+```powershell
+docker compose stop api
+docker compose up -d db
+docker compose exec -T db psql -U merchantflow -d merchantflow -f /docker-entrypoint-initdb.d/migrations/001_cents_to_paise.sql
+docker compose up --build
+```
+
+The migration is mounted read-only and is not rerun automatically on an existing volume. A fresh volume gets the paise schema directly. Do not remove the data volume to perform this rename.
 
 ## What it does
 
@@ -44,7 +59,7 @@ The system boundaries and transaction flow are described in [`docs/ARCHITECTURE.
 | `POST` | `/api/v1/orders/:id/cancel` | Cancel a pending order and release reserved stock |
 | `POST` | `/api/v1/simulator/webhooks` | Replay a local payment event by ID for failure experiments |
 
-Amounts are integer paise. The fake gateway is local-only and intentionally does not model card processing, settlement, or a real provider's signature scheme.
+All monetary integers use paise end to end: the API accepts and returns `pricePaise` and `amountPaise`, and PostgreSQL stores `price_paise` and `amount_paise`. The local payment simulator does not model card processing, settlement, or a real provider's signature scheme.
 
 ## Design notes
 
@@ -62,11 +77,11 @@ cd server && npm install && npm test
 cd ../client && npm install && npm run build
 ```
 
-The API tests use Node's built-in test runner. Integration cases use PostgreSQL and are opt-in locally so they cannot modify a database accidentally. Start the database with `docker compose up -d db`, then set `RUN_INTEGRATION_TESTS=1` and `DATABASE_URL=postgres://merchantflow:merchantflow@localhost:5432/merchantflow` before running `npm test` from `server`. From `client`, run `npm test` for the currency input tests and `npm run build` for the production build. CI starts a clean PostgreSQL service, runs the API integration suite, runs browser unit tests, and builds the dashboard.
+The API tests use Node's built-in test runner. PostgreSQL tests are opt-in locally: start the database with `docker compose up -d db`, then set `RUN_INTEGRATION_TESTS=1` and `DATABASE_URL=postgres://merchantflow:merchantflow@localhost:5432/merchantflow` before running `npm test` from `server`. From `client`, run `npm test` for paise input tests and `npm run build` for the dashboard. CI runs the PostgreSQL suite, dashboard tests/build, a Playwright browser test, and Windows clean-clone install/unit/build checks. Exact commands and status are in [`docs/TESTING.md`](docs/TESTING.md).
 
 ## Portfolio path
 
-I completed [Pocket Ledger](https://github.com/DivyanBabbar/pocket-ledger) and [Study Queue](https://github.com/DivyanBabbar/study-queue) before building MerchantFlow. They gave me a foundation in data validation, persistence, browser state, and accessibility. MerchantFlow applies those ideas to transactions, retries, and consistency across an API and database. I can run the project locally, demonstrate its order and payment flows, and use the tests to discuss its correctness boundaries.
+Alongside MerchantFlow, I have completed [Pocket Ledger](https://github.com/DivyanBabbar/pocket-ledger) and [Study Queue](https://github.com/DivyanBabbar/study-queue). Together, the projects show a progression through data validation, persistence, browser state, and API/database consistency. This is a learning progression rather than a claim about the order in which the repositories were started.
 
 ## License
 

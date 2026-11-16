@@ -10,6 +10,7 @@ services:
     volumes:
       - merchantflow-data:/var/lib/postgresql/data
       - ./server/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./server/db/migrations:/docker-entrypoint-initdb.d/migrations:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U merchantflow -d merchantflow"]
       interval: 3s

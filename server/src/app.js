@@ -17,7 +17,7 @@ const asOrder = (row) => ({
   productId: Number(row.product_id),
   productName: row.product_name,
   quantity: row.quantity,
-  amountCents: row.amount_cents,
+  amountPaise: row.amount_paise,
   status: row.status,
   createdAt: row.created_at,
   ledgerEntries: Number(row.ledger_entries ?? 0),
@@ -33,23 +33,23 @@ app.get('/health', async (_req, res, next) => {
 
 app.get('/api/v1/products', async (_req, res, next) => {
   try {
-    const { rows } = await pool.query('SELECT id, name, price_cents, stock FROM products ORDER BY id');
-    res.json(rows.map(p => ({ id: Number(p.id), name: p.name, priceCents: p.price_cents, stock: p.stock })));
+    const { rows } = await pool.query('SELECT id, name, price_paise, stock FROM products ORDER BY id');
+    res.json(rows.map(p => ({ id: Number(p.id), name: p.name, pricePaise: p.price_paise, stock: p.stock })));
   } catch (error) { next(error); }
 });
 
 app.post('/api/v1/products', async (req, res, next) => {
   try {
-    const { name, priceCents, stock = 0 } = req.body ?? {};
+    const { name, pricePaise, stock = 0 } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim() || name.trim().length > 120) throw httpError(400, 'Name must be 1 to 120 characters.');
-    if (!Number.isSafeInteger(priceCents) || priceCents < 1 || priceCents > 21_474_836) throw httpError(400, 'priceCents must be an integer from 1 to 21474836.');
+    if (!Number.isSafeInteger(pricePaise) || pricePaise < 1 || pricePaise > 21_474_836) throw httpError(400, 'pricePaise must be an integer from 1 to 21474836.');
     if (!Number.isSafeInteger(stock) || stock < 0) throw httpError(400, 'stock must be a non-negative integer.');
     const { rows } = await pool.query(
-      'INSERT INTO products (name, price_cents, stock) VALUES ($1, $2, $3) RETURNING id, name, price_cents, stock',
-      [name.trim(), priceCents, stock]
+      'INSERT INTO products (name, price_paise, stock) VALUES ($1, $2, $3) RETURNING id, name, price_paise, stock',
+      [name.trim(), pricePaise, stock]
     );
     const p = rows[0];
-    res.status(201).json({ id: Number(p.id), name: p.name, priceCents: p.price_cents, stock: p.stock });
+    res.status(201).json({ id: Number(p.id), name: p.name, pricePaise: p.price_paise, stock: p.stock });
   } catch (error) { next(error); }
 });
 
@@ -58,7 +58,7 @@ app.get('/api/v1/orders', async (_req, res, next) => {
     const { rows } = await pool.query(`
       SELECT o.*, p.name AS product_name,
         count(le.id)::int AS ledger_entries,
-        coalesce(sum(CASE WHEN le.direction = 'DEBIT' THEN le.amount_cents ELSE -le.amount_cents END), 0) = 0 AS ledger_balanced
+        coalesce(sum(CASE WHEN le.direction = 'DEBIT' THEN le.amount_paise ELSE -le.amount_paise END), 0) = 0 AS ledger_balanced
       FROM orders o JOIN products p ON p.id = o.product_id
       LEFT JOIN ledger_entries le ON le.order_id = o.id
       GROUP BY o.id, p.name ORDER BY o.created_at DESC LIMIT 100`);
@@ -85,14 +85,14 @@ app.post('/api/v1/orders', async (req, res, next) => {
         if (!prior.response_body) throw httpError(409, 'A request with this key is still being processed. Retry shortly.');
         return { replay: true, body: prior.response_body };
       }
-      const product = (await client.query('SELECT id, name, price_cents, stock FROM products WHERE id = $1 FOR UPDATE', [productId])).rows[0];
+      const product = (await client.query('SELECT id, name, price_paise, stock FROM products WHERE id = $1 FOR UPDATE', [productId])).rows[0];
       if (!product) throw httpError(404, 'Product not found.');
       if (product.stock < quantity) throw httpError(409, 'Not enough stock for this order.');
       const orderId = crypto.randomUUID();
-      const amountCents = product.price_cents * quantity;
+      const amountPaise = product.price_paise * quantity;
       await client.query('UPDATE products SET stock = stock - $1 WHERE id = $2', [quantity, productId]);
-      await client.query('INSERT INTO orders (id, product_id, quantity, amount_cents, status) VALUES ($1, $2, $3, $4, $5)', [orderId, productId, quantity, amountCents, 'PENDING']);
-      const body = { id: orderId, productId, productName: product.name, quantity, amountCents, status: 'PENDING', ledgerEntries: 0, ledgerBalanced: true };
+      await client.query('INSERT INTO orders (id, product_id, quantity, amount_paise, status) VALUES ($1, $2, $3, $4, $5)', [orderId, productId, quantity, amountPaise, 'PENDING']);
+      const body = { id: orderId, productId, productName: product.name, quantity, amountPaise, status: 'PENDING', ledgerEntries: 0, ledgerBalanced: true };
       await client.query('UPDATE idempotency_keys SET response_body = $2::jsonb WHERE key = $1', [key, JSON.stringify(body)]);
       return { replay: false, body };
     });
@@ -118,24 +118,24 @@ async function applyPaymentEvent(event) {
     }
     if (type === 'PAYMENT_CAPTURED') {
       if (order.status !== 'PENDING') throw httpError(409, `Cannot capture an order in ${order.status} state.`);
-      await client.query('INSERT INTO payments (id, order_id, amount_cents, status) VALUES ($1, $2, $3, $4)', [crypto.randomUUID(), orderId, order.amount_cents, 'CAPTURED']);
+      await client.query('INSERT INTO payments (id, order_id, amount_paise, status) VALUES ($1, $2, $3, $4)', [crypto.randomUUID(), orderId, order.amount_paise, 'CAPTURED']);
       await client.query('UPDATE orders SET status = $2, updated_at = now() WHERE id = $1', [orderId, 'PAID']);
-      await insertLedgerPair(client, orderId, eventId, type, order.amount_cents);
+      await insertLedgerPair(client, orderId, eventId, type, order.amount_paise);
       return { duplicate: false, status: 'PAID' };
     }
     if (order.status !== 'PAID') throw httpError(409, `Cannot refund an order in ${order.status} state.`);
     await client.query('UPDATE payments SET status = $2, updated_at = now() WHERE order_id = $1', [orderId, 'REFUNDED']);
     await client.query('UPDATE orders SET status = $2, updated_at = now() WHERE id = $1', [orderId, 'REFUNDED']);
-    await insertLedgerPair(client, orderId, eventId, type, order.amount_cents);
+    await insertLedgerPair(client, orderId, eventId, type, order.amount_paise);
     return { duplicate: false, status: 'REFUNDED' };
   });
 }
 
-async function insertLedgerPair(client, orderId, eventId, type, amountCents) {
-  const [first, second] = paymentLedgerPair(type, amountCents);
-  await client.query(`INSERT INTO ledger_entries (order_id, event_id, account, direction, amount_cents)
+async function insertLedgerPair(client, orderId, eventId, type, amountPaise) {
+  const [first, second] = paymentLedgerPair(type, amountPaise);
+  await client.query(`INSERT INTO ledger_entries (order_id, event_id, account, direction, amount_paise)
     VALUES ($1, $2, $3, $4, $5), ($1, $2, $6, $7, $5)`, [
-    orderId, eventId, first.account, first.direction, amountCents, second.account, second.direction
+    orderId, eventId, first.account, first.direction, amountPaise, second.account, second.direction
   ]);
 }
 
